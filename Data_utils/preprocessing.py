@@ -32,25 +32,32 @@ def random_crop(crop_shape, tensor_list):
 	"""
 	Perform an alligned random crop on the list of tensors passed as arguments l r and gt
 	"""
-	image_shape = tf.shape(tensor_list[0])
+	static_shape = tensor_list[0].get_shape().as_list()
+	is_batch = (len(static_shape)==4)
+	if is_batch:
+		image_shape = tf.shape(tensor_list[0][0])
+	else:
+		image_shape = tf.shape(tensor_list[0])
+	
 	max_row = image_shape[0]-crop_shape[0]-1
-	max_col = image_shape[1]-crop_shape[1]-1
+	max_col = image_shape[1]-crop_shape[1]-1	
 	start_row = tf.random_uniform([],minval=0,maxval=max_row,dtype=tf.int32)
 	start_col = tf.random_uniform([],minval=0,maxval=max_col,dtype=tf.int32)
 	result=[]
 	for x in tensor_list:
 		static_shape = x.get_shape().as_list()
-		if len(static_shape)==3:
-			#crop
-			temp = x[start_row:start_row+crop_shape[0],start_col:start_col+crop_shape[1],:]
-			#force shape
-			temp.set_shape([crop_shape[0],crop_shape[1],static_shape[-1]])
-		else:
+		if is_batch:
 			#crop
 			temp = x[:,start_row:start_row+crop_shape[0],start_col:start_col+crop_shape[1],:]
 			#force shape
 			temp.set_shape([static_shape[0],crop_shape[0],crop_shape[1],static_shape[-1]])
+		else:
+			#crop
+			temp = x[start_row:start_row+crop_shape[0],start_col:start_col+crop_shape[1],:]
+			#force shape
+			temp.set_shape([crop_shape[0],crop_shape[1],static_shape[-1]])			
 		result.append(temp)
+
 	return result
 
 	
