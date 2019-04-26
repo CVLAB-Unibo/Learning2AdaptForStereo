@@ -284,7 +284,7 @@ def get_supervised_loss(name, multiScale=False, logs=False, weights=None, reduce
 			disp_to_test=1
 		
 		if mask:
-			valid_map = tf.cast(tf.logical_and(tf.equal(targets, 0), tf.less_equal(targets,max_disp)), tf.float32)
+			valid_map = tf.cast(tf.logical_not(tf.logical_or(tf.equal(targets, 0), tf.greater_equal(targets,max_disp))), tf.float32)
 		else:
 			valid_map = tf.ones_like(targets)
 
@@ -295,7 +295,6 @@ def get_supervised_loss(name, multiScale=False, logs=False, weights=None, reduce
 			resized_disp = preprocessing.resize_to_prediction(current_disp,targets) * disparity_scale_factor
 
 			partial_loss = base_loss_function(resized_disp,targets,valid_map)
-			#partial_loss = tf.Print(partial_loss,[disparity_scale_factor,tf.shape(valid_map),tf.reduce_sum(valid_map), tf.reduce_sum(valid_map*resized_disp)/tf.reduce_sum(valid_map), tf.reduce_sum(valid_map*targets)/tf.reduce_sum(valid_map)],summarize=10000)
 			if logs:
 				tf.summary.scalar('Loss_resolution_{}'.format(i),partial_loss)
 			accumulator.append(weights[i]*partial_loss)

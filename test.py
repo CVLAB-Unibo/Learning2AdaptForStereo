@@ -16,7 +16,7 @@ def main(args):
     with tf.variable_scope('input_readers'):
 
         data_set = data_reader.dataset(
-            args.training,
+            args.sequence,
             batch_size = 1,
             crop_shape=args.imageSize,
             num_epochs=1,
@@ -35,8 +35,7 @@ def main(args):
         stereo_net = Nets.factory.getStereoNet(args.modelName, net_args)
         print('Stereo Prediction Model:\n', stereo_net)
 
-        # setup unsupervised loss
-        # retrieve full resolution prediction and setup its shape
+        # retrieve full resolution prediction and set its shape
         predictions = stereo_net.get_disparities()
         full_res_disp = predictions[-1]
         full_res_shape = left_img_batch.get_shape().as_list()
@@ -54,9 +53,9 @@ def main(args):
         inputs['target'] = gt_input
 
 
-        if not args.supervised:
+        if args.mode != 'SAD':
             reprojection_error = loss_factory.get_reprojection_loss('ssim_l1',reduced=False)([full_res_disp],inputs)[0]
-            if args.weightingNetwork:
+            if args.mode=='WAD':
                 weight,_ = Nets.sharedLayers.weighting_network(tf.stop_gradient(reprojection_error),reuse=False)
                 adaptation_loss = tf.reduce_sum(reprojection_error*weight)
                 if args.summary>1:
@@ -169,8 +168,8 @@ def main(args):
                     cv2.imwrite(os.path.join(args.output, 'rgbs/left_{}.png'.format(step)), lefty[0,:,:,::-1].astype(np.uint8))
 
                 step += 1
-        except Exception as e:
-            print('Exception catched {}'.format(e))
+        except tf.errors.OutOfRangeError:
+            pass
         finally:
             global_end_time = time.time()
             avg_execution_time = (global_end_time-global_start_time)/step
@@ -197,19 +196,17 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Script to adapt online a Stereo network")
-    parser.add_argument("--training", required=True, type=str, help='path to the training list file')
+    parser.add_argument("--sequence", required=True, type=str, help='path to the sequence file')
     parser.add_argument("-o", "--output", type=str, help='path to the output folder where stuff will be saved', required=True)
     parser.add_argument("--weights", help="intial weight for the network", default=None)
     parser.add_argument("--modelName", help="name of the stereo model to be used", default="Dispnet", choices=Nets.factory.getAvailableNets())
     parser.add_argument("--lr", help="value for learning rate",default=0.0001, type=float)
     parser.add_argument("--logDispStep", help="save disparity at step multiple of this, -1 to disable saving", default=-1, type=int)
     parser.add_argument("--prefix", help='prefix to be added to the saved variables to restore them', default='')
-    parser.add_argument('-m', "--mode", help='choose the adaptation mode, ALL to perform adaptation, NONE to perform just inference', choices=['ALL', 'NONE'], required=True)
-    parser.add_argument("--supervised", help="flag to enable adaptation using gt labels", action="store_true")
+    parser.add_argument('-m', "--mode", help='choose the adaptation mode, AD to perform standard adaptation, WAD to perform confidence weighted adaptation, NONE to perform just inference', choices=['AD', 'WAD', 'SAD', 'NONE'], required=True)
     parser.add_argument("--summary",help="type of tensorboard summaries: 0 disabled, 1 scalar, 2 scalar+image",type=int, default=0, choices=[0,1,2])
-    parser.add_argument("--weightingNetwork",help="flag, if present build a weighting network",action='store_true')
     parser.add_argument("--imageSize", type=int, default=[320,1216], help='two int refering to input image height e width', nargs='+')
-    parser.add_argument("--badTH", type=int, default=3, help="threshold for percentage of wrong pixel computation")
+    parser.add_argument("--badTH", type=int, default=3, help="threshold for percentage of wrong pixels")
     parser.add_argument("--kittiEval", help="evaluation using kitti2015 protocol: error < badth or lower than 5 percent", action='store_true')
     args = parser.parse_args()
     
