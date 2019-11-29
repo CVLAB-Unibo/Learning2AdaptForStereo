@@ -1,2 +1,3 @@
-tensorflow-gpu
-opencv-python
+tensorflow-gpu==1.12
+numpy==1.16
+opencv-python=4.1.1.26
